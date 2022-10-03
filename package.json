@@ -16,5 +16,8 @@
   "bugs": {
     "url": "https://github.com/RayuY/tinyapp/issues"
   },
-  "homepage": "https://github.com/RayuY/tinyapp#readme"
+  "homepage": "https://github.com/RayuY/tinyapp#readme",
+  "dependencies": {
+    "express": "^4.18.1"
+  }
 }
