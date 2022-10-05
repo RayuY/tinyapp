@@ -18,13 +18,23 @@
     <div class="card text-center">
       <div class="card-header"></div>
       <div class="card-body">
-        <h5 class="card-title">TinyURL for: <%= longURL %></h5>
+        <h5 class="card-title">TinyURL for : <%= longURL[id] %></h5>
         <p class="card-text">
-          Short URL ID: <a href="/u/<%= id %>"><%= id %></a>
+          Short URL ID : <a href="/u/<%= id %>"><%= id %></a>
         </p>
+        <hr>
+        Edit 
+        <p>
+          <form method="POST" action="/urls/<%= id %>">New URL : <input name="newURL" type="text" placeholder="New URL">  <button type="submit"> Submit </button></form>
+        </p>
+        
       </div>
       <div class="card-footer text-muted"></div>
     </div>
+ 
+
+
+    
     <!-- Bootstrap JS -->
     <script
       src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
