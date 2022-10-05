@@ -9,14 +9,29 @@
       aria-controls="navbarNavAltMarkup"
       aria-expanded="false"
       aria-label="Toggle navigation"
-    >
+      >
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarNavAltMarkup">
       <div class="navbar-nav">
         <a class="nav-item nav-link" href="/urls">My URLs</a>
         <a class="nav-item nav-link" href="/urls/new">Create New URL</a>
+
       </div>
     </div>
+    <% if (username !== undefined) { %> 
+    Logged in as : <%= username %> 
+    <form action="/urls/logout" method="POST">
+      <input name="username"/>
+      <button type="submit" class="btn btn-primary"> Log Out </button>
+    </form> 
+    
+    <% } else { %>  
+    <form action="/urls/login" method="POST">
+      <input name="username"/>
+      <button type="submit" class="btn btn-primary"> Sign In </button>
+      <% } %>
   </nav>
 </header>
+
+
