@@ -19,13 +19,13 @@ const urlDatabase = {
 const users = {
   userRandomID: {
     id: "userRandomID",
-    email: "user@example.com",
-    password: "purple-monkey-dinosaur",
+    email: "a@b.com",
+    password: "123",
   },
   user2RandomID: {
     id: "user2RandomID",
-    email: "user2@example.com",
-    password: "dishwasher-funk",
+    email: "ab@cd.com",
+    password: "456",
   },
 };
 
@@ -41,9 +41,13 @@ const getUserByEmail = (email) => {
 
 
 app.get("/urls/new", (req, res) => {
+  if (!getUserByEmail(req.cookies["username"])) {
+    res.redirect("/urls");
+  } else {
   const user = getUserByEmail(req.cookies["username"])
   const templateVars = { user }
   res.render("urls_new", templateVars);
+  }
 });
 
 
@@ -61,16 +65,29 @@ app.get("/urls", (req, res) => {
 
 
 app.get("/u/:id", (req, res) => {
+  if (urlDatabase[req.params.id] === undefined) {
+    res.send("Unknown Territory")
+  } else {
   const url = urlDatabase[req.params.id];
-  res.redirect(url);
+  res.redirect(url)
+  };
 });
 
 app.get("/register", (req, res) => {
-  res.render("urls_register");
+  if (getUserByEmail(req.cookies["username"])) {
+    res.redirect("/urls");
+  } else {
+   res.render("urls_register");
+  }
 });
 
+
 app.get("/login", (req, res) => {
-  res.render("urls_login");
+  if (getUserByEmail(req.cookies["username"])) {
+    res.redirect("/urls");
+  } else {
+    res.render("urls_login")
+  };
 });
 
 
@@ -92,7 +109,7 @@ app.post("/login", (req, res) => {
 
 
 app.post("/urls/logout", (req, res) => {
-  res.clearCookie('username', req.body.email)
+  res.clearCookie('username')
   res.redirect(`/urls`);
 })
 
@@ -120,11 +137,15 @@ app.post("/urls/:id", (req, res) => {
 })
 
 app.post("/urls", (req, res) => {
+  if (!getUserByEmail(req.cookies["username"])) {
+    res.send("Only logged in users can use tiny url.")
+  } else {
   let r = generateRandomString();
   const longURL = req.body.longURL;
   urlDatabase[r] = longURL;
   res.redirect(`/urls`); 
-})
+  }
+});
 
 app.post("/register", (req, res) => {
   res.cookie("username", req.body.email);
