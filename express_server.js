@@ -6,14 +6,24 @@ const app = express();
 const PORT = 8080; // default port 8080
 
 // ----------- middleware
+
 app.set("view engine", "ejs");
 app.use(express.urlencoded({extended: true }));
 app.use(morgan('dev'));
 app.use(cookieParser());
 
-const urlDatabase = {
-  "9sm5xK": "http://www.google.com",
-  "b2xVn2": "http://www.lighthouselabs.ca"
+
+// ------------ data base
+
+const urlDatabase = {  
+  b6UTxQ: {
+    longURL: "https://www.tsn.ca",
+    userID: "aJ48lW",
+  },
+  i3BoGr: {
+    longURL: "https://www.google.ca",
+    userID: "aJ48lW",
+  },
 };
 
 const users = {
@@ -29,6 +39,9 @@ const users = {
   },
 };
 
+
+// --------- helper function
+
 const getUserByEmail = (email) => {
   for (i in users) {
     const value = users[i];
@@ -39,29 +52,81 @@ const getUserByEmail = (email) => {
   return null;
 }
 
+function generateRandomString() {
+  return random = (Math.random() + 1).toString(36).substring(6);
+};
+
+
+// ---------- get
+
+app.get('/', (req, res) => {
+  res.send('<h1>Tiny Url! 🐳</h1>');
+});
+
 
 app.get("/urls/new", (req, res) => {
-  if (!getUserByEmail(req.cookies["username"])) {
-    res.redirect("/urls");
-  } else {
+  const userId = req.cookies.username;
+  if (!userId) {
+    return res.send("<h1><a href=\"/register\">Register</a> or <a href=\"/login\">login</a> before you can start using Tiny Urls!</1>");
+  }
+
+  console.log(userId);
   const user = getUserByEmail(req.cookies["username"])
   const templateVars = { user }
   res.render("urls_new", templateVars);
-  }
-});
+
+  });
 
 
 app.get("/urls/:id", (req, res) => {
-  const user = getUserByEmail(req.cookies["username"])
-  const templateVars = { id: req.params.id, longURL: urlDatabase, user};
+  const userId = req.cookies.username;
+  if (!userId) {
+    return res.status(401).send("user not logged in.");
+  }
+
+  const user = getUserByEmail(userId);
+  if (!user) {
+    return res.status(401).send("user not exist.")
+  }
+
+  const urlId = req.params.id;
+  const urlObj = urlDatabase[urlId];
+  if (!urlObj) {
+    return res.status(404).send("url doesn't exist.")
+  }
+
+  const urlBelongsToUser = urlObj.userID === userId;
+  if (!urlBelongsToUser) {
+    return res.status(401).send("unauthorized. You are not owner of the url.")
+  }
+  
+  const templateVars = { 
+    urlId,
+    urlObj,
+    user
+  };
+
   res.render("urls_show", templateVars);
 });
 
+
+
 app.get("/urls", (req, res) => {
-  const user = getUserByEmail(req.cookies["username"])
+  const userId = req.cookies.username;
+  if (!userId) {
+    return res.redirect('/register');
+  }
+
+  const user = getUserByEmail(userId);
+
+  if (!user) {
+    return res.status(401).send("user not exist.")
+  }
+
   const templateVars = { urls: urlDatabase, user};
   res.render("urls_index", templateVars);
 });
+
 
 
 app.get("/u/:id", (req, res) => {
@@ -72,6 +137,8 @@ app.get("/u/:id", (req, res) => {
   res.redirect(url)
   };
 });
+
+
 
 app.get("/register", (req, res) => {
   if (getUserByEmail(req.cookies["username"])) {
@@ -113,28 +180,68 @@ app.post("/urls/logout", (req, res) => {
   res.redirect(`/urls`);
 })
 
+
+
 app.post("/urls/login", (req, res) => {
   const username = req.body.email
   res.cookie('username', username);
   res.redirect(`/urls`);
 })
 
+
+
 app.post("/urls/:id/delete", (req, res) => {
+  const userID = req.cookies.username;
+  const urlId = req.params.id;
+  const urlObj = urlDatabase[urlId];
+
+  const urlBelongsToUser = urlObj.userID === userID;
+  if (!urlBelongsToUser) {
+    return res.status(401).send("unauthorized. You are not owner of the url.")
+  }
+ 
+
   let id = req.params.id;
   delete urlDatabase[id];
   res.redirect(`/urls`); 
 })
 
-app.post("/urls/edit/:id", (req, res) => {
-  const id = req.params.id
-  res.redirect(`/urls/${id}`); 
-})
 
 app.post("/urls/:id", (req, res) => {
-  let id = req.params.id;
-  urlDatabase[id] = req.body.newURL;
+  const userID = req.cookies.username;
+  if (!userID) {
+    return res.status(401).send("user not logged in.");
+  }
+
+  const user = getUserByEmail(userID);
+  if (!user) {
+    return res.status(401).send("user not exist.")
+  }
+
+  const urlId = req.params.id;
+  const urlObj = urlDatabase[urlId];
+  if (!urlObj) {
+    return res.status(404).send("url doesn't exist.")
+  }
+
+  const urlBelongsToUser = urlObj.userID === userID;
+  if (!urlBelongsToUser) {
+    return res.status(401).send("unauthorized. You are not owner of the url.")
+  }
+ 
+  const newURL = req.body.newURL;
+  if (!newURL) {
+    return res.status(401).send("new URL can't be empty.")
+  }
+
+  urlDatabase[urlId]= {
+    longURL: newURL, 
+    userID
+  }
   res.redirect(`/urls`); 
 })
+
+
 
 app.post("/urls", (req, res) => {
   if (!getUserByEmail(req.cookies["username"])) {
@@ -142,10 +249,16 @@ app.post("/urls", (req, res) => {
   } else {
   let r = generateRandomString();
   const longURL = req.body.longURL;
-  urlDatabase[r] = longURL;
+  urlDatabase[r]= {
+    longURL: longURL, 
+    userID: req.cookies.username
+  }
+
   res.redirect(`/urls`); 
   }
 });
+
+
 
 app.post("/register", (req, res) => {
   res.cookie("username", req.body.email);
@@ -168,17 +281,11 @@ app.post("/register", (req, res) => {
 });
 
 
+
 // ------- listen
+
 
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}!`);
 });
 
-
-
-
-// ------------ functions
-
-function generateRandomString() {
-  return random = (Math.random() + 1).toString(36).substring(6);
-};
