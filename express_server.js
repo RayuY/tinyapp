@@ -1,18 +1,23 @@
 const express = require("express");
 const morgan = require("morgan");
+const cookieSession = require('cookie-session');
 const bcrypt = require("bcryptjs");
-const cookieParser = require('cookie-parser');
-const { resolveInclude } = require("ejs");
 const app = express();
 const PORT = 8080; // default port 8080
+
+// require helper functions from helpers.js
+
+const { getUserByEmail, generateRandomString } = require('./helpers.js');
 
 // ----------- middleware
 
 app.set("view engine", "ejs");
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
-app.use(cookieParser());
-
+app.use(cookieSession({
+  name: 'session',
+  keys: ['secret']
+}));
 
 // ------------ data base
 
@@ -40,24 +45,6 @@ const users = {
   },
 };
 
-
-// --------- helper function
-
-const getUserByEmail = (email) => {
-  for (i in users) {
-    const value = users[i];
-    if (value.email === email) {
-      return value;
-    }
-  }
-  return null;
-}
-
-function generateRandomString() {
-  return random = (Math.random() + 1).toString(36).substring(6);
-};
-
-
 // ---------- get
 
 app.get('/', (req, res) => {
@@ -66,38 +53,38 @@ app.get('/', (req, res) => {
 
 
 app.get("/urls/new", (req, res) => {
-  const userId = req.cookies.username;
+  const userId = req.session.username;
+  console.log("USERID=", req.session.username);
   if (!userId) {
     return res.send("<h1><a href=\"/register\">Register</a> or <a href=\"/login\">login</a> before you can start using Tiny Urls!</1>");
   }
 
-  const user = getUserByEmail(req.cookies["username"])
-  const templateVars = { user }
+  const user = getUserByEmail(req.session["username"], users);
+  const templateVars = { user };
   res.render("urls_new", templateVars);
-
 });
 
 
 app.get("/urls/:id", (req, res) => {
-  const userId = req.cookies.username;
+  const userId = req.session.username;
   if (!userId) {
     return res.status(401).send("user does not logged in.");
   }
 
-  const user = getUserByEmail(userId);
+  const user = getUserByEmail(userId, users);
   if (!user) {
-    return res.status(401).send("unauthorized. You are not owner of the url.")
+    return res.status(401).send("unauthorized. You are not owner of the url.");
   }
 
   const urlId = req.params.id;
   const urlObj = urlDatabase[urlId];
   if (!urlObj) {
-    return res.status(404).send("url doesn't exist.")
+    return res.status(404).send("url doesn't exist.");
   }
 
   const urlBelongsToUser = urlObj.userID === userId;
   if (!urlBelongsToUser) {
-    return res.status(401).send("unauthorized. You are not owner of the url.")
+    return res.status(401).send("unauthorized. You are not owner of the url.");
   }
 
   const templateVars = {
@@ -110,35 +97,38 @@ app.get("/urls/:id", (req, res) => {
 });
 
 
-
 app.get("/urls", (req, res) => {
-  const userId = req.cookies.username;
-  if (!userId) {
-    return res.redirect('/register');
+  const userEmail = req.session.username;
+
+  if (!userEmail) {
+    return res
+      .status(401)
+      .send("<h1><a href=\"/register\">Register</a> or <a href=\"/login\">login</a> before you can start using Tiny Urls!</1>");
   }
-
-  const user = getUserByEmail(userId);
-
+  
+  const user = getUserByEmail(userEmail, users);
   const templateVars = { urls: urlDatabase, user };
   res.render("urls_index", templateVars);
 });
 
 
-
 app.get("/u/:id", (req, res) => {
-  if (urlDatabase[req.params.id] === undefined) {
-    res.send("Unknown Territory")
+  const urlId = urlDatabase[req.params.id];
+
+  if (!urlId) {
+    res.send("Unknown Territory");
   } else {
-    const url = urlDatabase[req.params.id];
-    res.redirect(url)
-  };
+    const url = urlDatabase[req.params.id]["longURL"];
+    res.redirect(url);
+  }
 });
 
 
-
 app.get("/register", (req, res) => {
-  
-  if (getUserByEmail(req.cookies["username"])) {
+  const userEmail = req.session["username"];
+  const user = getUserByEmail(userEmail, users);
+
+  if (user) {
     res.redirect("/urls");
   } else {
     res.render("urls_register");
@@ -147,114 +137,123 @@ app.get("/register", (req, res) => {
 
 
 app.get("/login", (req, res) => {
-  if (getUserByEmail(req.cookies["username"])) {
+  const email = getUserByEmail(req.session["username"]);
+
+  if (email) {
     res.redirect("/urls");
   } else {
-    res.render("urls_login")
-  };
+    res.render("urls_login");
+  }
 });
 
 
 // ------- post
 
+
 app.post("/login", (req, res) => {
+  if (!req.body.email || !req.body.password) {
+    return res.status(400).send("Email or Password can't be empty.");
+  }
   const email = req.body.email;
-  const user = getUserByEmail(email);
-  console.log(user);
+  const user = getUserByEmail(email, users);
 
-
-  //password validation 
-  const match = bcrypt.compareSync(req.body.password, user.hashedPassword);
-  
-  if (user === null) {
-    return res.status(403).send("User does not exist!")
-  } else if (!match) {
-    return res.status(403).send("Invalid credentials.")
+  if (!user) {
+    return res.status(403).send(`No matching user: ${email}`);
   }
 
-  res.cookie('username', email);
+  //password validation
+  const match = bcrypt.compareSync(req.body.password, user.hashedPassword);
+  
+  if (!match) {
+    return res.status(403).send("Invalid credentials.");
+  }
+
+  req.session.username = email;
   res.redirect("/urls");
 });
 
 
 app.post("/urls/logout", (req, res) => {
-  res.clearCookie('username')
-  res.redirect(`/urls`);
-})
+  res.clearCookie('session');
+  res.redirect(`/register`);
+});
 
 
 app.post("/urls/login", (req, res) => {
-  const username = req.body.email
-  res.cookie('username', username);
+  const username = req.body.email;
+  req.session.username = username;
   res.redirect(`/urls`);
-})
+});
 
 
 
 app.post("/urls/:id/delete", (req, res) => {
-  const userID = req.cookies.username;
+  const userID = req.session.username;
   const urlId = req.params.id;
   const urlObj = urlDatabase[urlId];
 
   const urlBelongsToUser = urlObj.userID === userID;
   if (!urlBelongsToUser) {
-    return res.status(401).send("unauthorized. You are not owner of the url.")
+    return res.status(401).send("unauthorized. You are not owner of the url.");
   }
 
   let id = req.params.id;
   delete urlDatabase[id];
   res.redirect(`/urls`);
-})
+});
 
 
 app.post("/urls/:id", (req, res) => {
-  const userID = req.cookies.username;
+
+  const userID = req.session.username;
   if (!userID) {
     return res.status(401).send("user does not logged in.");
   }
 
-  const user = getUserByEmail(userID);
+  const user = getUserByEmail(userID, users);
   if (!user) {
-    return res.status(401).send("user does not exist.")
+    return res.status(401).send("user does not exist.");
   }
 
   const urlId = req.params.id;
   const urlObj = urlDatabase[urlId];
   if (!urlObj) {
-    return res.status(404).send("url doesn't exist.")
+    return res.status(404).send("url doesn't exist.");
   }
 
   const urlBelongsToUser = urlObj.userID === userID;
   if (!urlBelongsToUser) {
-    return res.status(401).send("unauthorized. You are not owner of the url.")
+    return res.status(401).send("Unauthorized. Not the owner of selected url.");
   }
 
   const newURL = req.body.newURL;
   if (!newURL) {
-    return res.status(401).send("new URL can't be empty.")
+    return res.status(401).send("new URL can't be empty.");
   }
 
   urlDatabase[urlId] = {
     longURL: newURL,
     userID
-  }
+  };
   res.redirect(`/urls`);
-})
+});
 
 
 
 app.post("/urls", (req, res) => {
 
-  if (!getUserByEmail(req.cookies["username"])) {
-    res.send("Only logged in users can use tiny url.")
+  const userID = req.session.username;
+
+  if (!userID) {
+    res
+      .send("Only logged in users can use tiny url.");
   } else {
     let r = generateRandomString();
     const longURL = req.body.longURL;
     urlDatabase[r] = {
       longURL: longURL,
-      userID: req.cookies.username
-    }
-    
+      userID: req.session.username
+    };
     res.redirect(`/urls`);
   }
 });
@@ -263,12 +262,15 @@ app.post("/urls", (req, res) => {
 
 app.post("/register", (req, res) => {
 
-  res.cookie("username", req.body.email);
+  // res.cookie("username", req.body.email);
+  req.session.username = req.body.email;
   const id = generateRandomString();
 
   // check for empty inputs
   if (!req.body.email || !req.body.password) {
-    return res.status(400).send("Email or Password can't be empty.")
+    return res
+      .status(400)
+      .send("Email or Password can't be empty. <a href=\"/register\">Try again</a>.");
   }
   const email = req.body.email;
   const password = req.body.password;
@@ -278,12 +280,14 @@ app.post("/register", (req, res) => {
   console.log(hashedPassword);
 
   // check if email already exists
-  if (getUserByEmail(email) !== null) {
-    return res.status(400).send("User already exist!")
+  if (getUserByEmail(email, users) !== null) {
+    return res
+      .status(400)
+      .send("User already exist! <a href=\"/register\">Try again</a>.");
   }
-  
+
   // create new user
-  users[id] = { id, email, hashedPassword }
+  users[id] = { id, email, hashedPassword };
   res.redirect(`/urls`);
 });
 
