@@ -12,6 +12,7 @@
     />
     <title>URL - TinyApp Example</title>
   </head>
+
   <%- include('partials/_header') %>
 
   <body>
@@ -25,15 +26,12 @@
         <hr>
         Edit 
         <p>
-          <form method="POST" action="/urls/<%= urlId %>">New URL : <input name="newURL" type="text" placeholder="New URL">  <button type="submit"> Submit </button></form>
+          <form method="POST" action="/urls/<%= urlId %>">New URL : <input name="newURL" type="text" placeholder="New URL" value="<%= urlObj.longURL %>">  <button type="submit"> Submit </button></form>
         </p>
         
       </div>
       <div class="card-footer text-muted"></div>
     </div>
- 
-
-
     
     <!-- Bootstrap JS -->
     <script

@@ -21,7 +21,7 @@
     </div>
     <% if (user && user.email !== undefined) { %> 
     Logged in as : <%= user.email %>   
-      <form action="/urls/logout" method="post">
+      <form action="/logout" method="post">
       <button type="submit" class="btn btn-primary"> Log Out </button>
       </form>
 
