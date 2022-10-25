@@ -7,7 +7,8 @@ const PORT = 8080; // default port 8080
 
 // require helper functions from helpers.js
 
-const { getUserByEmail, generateRandomString } = require('./helpers.js');
+const { getUserByEmail, generateRandomString, userOwnedURLs,
+  getUserEmail } = require('./helpers.js');
 
 // ----------- middlewares
 
@@ -39,7 +40,7 @@ const users = {
 // ---------- routes / endpoints
 
 app.get('/', (req, res) => {
-  const userId = req.session.username;
+  const userId = req.session.userID;
   if (!userId) {
     res.redirect('/login');
   }
@@ -49,22 +50,23 @@ app.get('/', (req, res) => {
 // renders urls_new with urls created by user when logged in.
 // shows error otherwise without active user.
 app.get("/urls/new", (req, res) => {
-  const userId = req.session.username;
+  const userId = req.session.userID;
   if (!userId) {
     return res.send("<h1>Error! <a href=\"/register\">Register</a> or <a href=\"/login\">login</a> before you can start using Tiny Urls!</1>");
   }
 
-  const user = getUserByEmail(req.session["username"], users);
+  const user = getUserByEmail(req.session["userID"], users);
   const templateVars = { user };
   res.render("urls_new", templateVars);
 });
 
 // validations before granting access to specific url.
 app.get("/urls/:id", (req, res) => {
-  const userId = req.session.username;
+  const userId = req.session.userID;
   if (!userId) return res.send("No user is currently logged in.");
 
-  const user = getUserByEmail(userId, users);
+  const userEmail = users[userId].email
+  const user = getUserByEmail(userEmail, users);
   if (!user) return res.send("No existing user found");
 
   const urlId = req.params.id;
@@ -83,15 +85,17 @@ app.get("/urls/:id", (req, res) => {
 
 // main page if there's an active user, otherwise shows error.
 app.get("/urls", (req, res) => {
-  const userEmail = req.session.username;
-
-  if (!userEmail) {
-    return res
-      .send("<h1>Error! <a href=\"/register\">Register</a> or <a href=\"/login\">login</a> before you can start using Tiny Urls!</1>");
-  }
-  
+  const userID = req.session.userID;
+  const userEmail = getUserEmail(userID, users)
   const user = getUserByEmail(userEmail, users);
-  const templateVars = { urls: urlDatabase, user };
+
+  console.log("TEST", userID)
+  if (!userID) {
+    return res
+      .render("urls_index", { user, urls: userOwnedURLs(userID, urlDatabase) })
+  }
+
+  const templateVars = { urls: userOwnedURLs(userID, urlDatabase), user};
   res.render("urls_index", templateVars);
 });
 
@@ -109,19 +113,19 @@ app.get("/u/:id", (req, res) => {
 
 // register new user into database.
 app.get("/register", (req, res) => {
-  const userEmail = req.session["username"];
-  const user = getUserByEmail(userEmail, users);
+  const userID = req.session.userID
 
-  if (user) {
-    res.redirect("/urls");
-  } else {
+  if(!userID) {
     res.render("urls_register");
+  } else {
+    res.redirect("/urls");
   }
+
 });
 
 // login page if no active user, otherwise redirect to main page.
 app.get("/login", (req, res) => {
-  const userID = req.session.username;
+  const userID = req.session.userID;
 
   if (userID) {
     res.redirect("/urls");
@@ -153,13 +157,13 @@ app.post("/login", (req, res) => {
   
   if (!match) return res.send("Invalid credentials.");
 
-  req.session.username = email;
+  req.session.userID = user.id;
   res.redirect("/urls");
 });
 
 // delete urls only if logged in user is the owner of targeted url.
 app.post("/urls/:id/delete", (req, res) => {
-  const userID = req.session.username;
+  const userID = req.session.userID;
   const urlId = req.params.id;
   const urlObj = urlDatabase[urlId];
 
@@ -177,11 +181,11 @@ app.post("/urls/:id/delete", (req, res) => {
 // display error messages otherwise.
 app.post("/urls/:id", (req, res) => {
 
-  const userID = req.session.username;
+  const userID = req.session.userID;
   if (!userID) return res.send("user does not logged in.");
   
-
-  const user = getUserByEmail(userID, users);
+  const userEmail = getUserEmail(userID, users)
+  const user = getUserByEmail(userEmail, users);
   if (!user) return res.send("user does not exist.");
 
   const urlId = req.params.id;
@@ -208,7 +212,7 @@ app.post("/urls", (req, res) => {
   const longURL = req.body.longURL;
   urlDatabase[r] = {
     longURL: longURL,
-    userID: req.session.username
+    userID: req.session.userID
   };
 
   res.redirect(`/urls/${r}`);
@@ -216,25 +220,25 @@ app.post("/urls", (req, res) => {
 
 // registeration checks
 app.post("/register", (req, res) => {
-
-  req.session.username = req.body.email;
-  const id = generateRandomString();
-
-  if (!req.body.email || !req.body.password) {
-    return res
-      .send("Email or Password can't be empty. <a href=\"/register\">Try again</a>.");
-  }
   const email = req.body.email;
   const password = req.body.password;
+  
+  const id = generateRandomString();
+  
+  if (!email || !password) {
+    return res
+    .send("Email or Password can't be empty. <a href=\"/register\">Try again</a>.");
+  }
 
   const hashedPassword = bcrypt.hashSync(password, 8);
   console.log(hashedPassword);
-
+  
   if (getUserByEmail(email, users) !== null) {
     return res
-      .send("User already exist! <a href=\"/register\">Try again</a>.");
+    .send("User already exist! <a href=\"/register\">Try again</a>.");
   }
-
+  
+  req.session.userID = id;
   // create new user if pass all checks.
   users[id] = { id, email, hashedPassword };
   res.redirect(`/urls`);

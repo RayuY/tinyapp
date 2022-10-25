@@ -1,5 +1,5 @@
 // cross check email with database.
-const getUserByEmail = (email, database) => {
+function getUserByEmail(email, database){
   for (i in database) {
     const user = database[i];
     if (user.email === email) {
@@ -9,6 +9,30 @@ const getUserByEmail = (email, database) => {
   return null;
 }
 
+
+function userOwnedURLs(userID, database) {
+  const urlList = {}
+
+  for(let shortURL in database) {
+    if(database[shortURL].userID === userID) {
+      urlList[shortURL] = database[shortURL]
+    }
+  }
+
+  return urlList
+}
+
+
+
+function getUserEmail(userID, users) {
+  if(users[userID]) return users[userID].email
+  return null
+}
+
+
+
+
+
 // generates random user key.
 function generateRandomString() {
   return random = (Math.random() + 1).toString(36).substring(6);
@@ -17,4 +41,6 @@ function generateRandomString() {
 module.exports = { 
   getUserByEmail, 
   generateRandomString,
+  userOwnedURLs,
+  getUserEmail
 }

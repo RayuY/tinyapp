@@ -35,6 +35,7 @@
         <tbody>
           <% for (let id in urls) { %>
             <tr>
+              <% if(urls[id]["email"] === user)  %>
               <td><%= id %></td>
               <td><%= urls[id]["longURL"] %></td>
 
